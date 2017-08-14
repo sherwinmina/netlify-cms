@@ -1,3 +1,5 @@
+import { addParams } from '../../../lib/urlHelper';
+
 export default class AssetStore {
   constructor(config, getToken) {
     this.config = config;
@@ -64,6 +66,35 @@ export default class AssetStore {
 
       return response.text();
     });
+  }
+
+  retrieve(query) {
+    const url = query ? addParams(this.getSignedFormURL, { search: query }) : this.getSignedFormURL;
+    console.log(url);
+
+    return this.getToken()
+      .then(token => this.request(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${ token }`,
+        },
+      }))
+      .then(files => files.map(({ id, name, size, url }) => {
+        return { id, name, size, url, urlIsPublicPath: true };
+      }));
+  }
+
+  delete(assetID) {
+    const url = `${ this.getSignedFormURL }/${ assetID }`
+    return this.getToken()
+      .then(token => this.request(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${ token }`,
+        },
+      }));
   }
 
   upload(file, privateUpload = false) {

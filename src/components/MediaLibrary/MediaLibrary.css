@@ -1,0 +1,83 @@
+.nc-mediaLibrary-buttonRight {
+  float: right;
+  margin-left: 10px;
+}
+
+.nc-mediaLibrary-buttonLeft {
+  float: left;
+  margin-right: 10px;
+}
+
+.nc-mediaLibrary-searchInput {
+  @apply --input;
+  font-family: var(--fontFamilyPrimary);
+  width: 50%;
+  max-width: 800px;
+  margin: 12px auto;
+  display: inline-block;
+}
+
+.nc-mediaLibrary-thumbnail {
+  max-height: 44px;
+  max-width: 88px;
+  margin: -10px auto;
+  display: block;
+  border-radius: 4px;
+}
+
+.nc-mediaLibrary-emptyMessage {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/**
+ * Table Size and Scrolling
+ */
+.nc-mediaLibrary-tableContainer {
+  height: 100%;
+  padding-bottom: 130px;
+}
+
+.nc-mediaLibrary-tableContainer-inner {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/**
+ * Table Header
+ */
+.nc-mediaLibrary-headCell {
+  user-select: none;
+  position: relative;
+
+  &:hover {
+    background-color: #eee;
+
+    & .nc-mediaLibrary-sortIcon {
+      color: inherit !important;
+    }
+  }
+}
+
+.nc-mediaLibrary-sortIcon {
+  font-size: 12px !important;
+  font-weight: bold !important;
+  position: absolute;
+  bottom: 14px;
+  left: 4px;
+  vertical-align: middle;
+}
+
+/**
+ * Keyboard Nav Support
+ */
+.nc-mediaLibrary-rowFocused {
+  background-color: #eee;
+}
+

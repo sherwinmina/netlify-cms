@@ -89,8 +89,20 @@ export default class GitHub {
     }));
   }
 
+  getMedia() {
+    return this.api.listFiles(this.config.get('media_folder'))
+      .then(files => files.filter(file => file.type === 'file'))
+      .then(files => files.map(({ sha, name, size, download_url, path }) => {
+        return { id: sha, name, size, url: download_url, path };
+      }));
+  }
+
   persistEntry(entry, mediaFiles = [], options = {}) {
     return this.api.persistFiles(entry, mediaFiles, options);
+  }
+
+  persistMedia(mediaFile, options = {}) {
+    return this.api.persistFiles(null, [mediaFile], options);
   }
 
   deleteFile(path, commitMessage, options) {

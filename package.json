@@ -124,8 +124,10 @@
     "webpack-postcss-tools": "^1.1.1"
   },
   "dependencies": {
+    "bytes": "^2.5.0",
     "classnames": "^2.2.5",
     "create-react-class": "^15.6.0",
+    "focus-trap-react": "^3.0.3",
     "fuzzy": "^0.1.1",
     "gotrue-js": "^0.9.11",
     "gray-matter": "^3.0.6",
@@ -184,6 +186,7 @@
     "unified": "^6.1.4",
     "unist-builder": "^1.0.2",
     "unist-util-visit-parents": "^1.1.1",
+    "url": "^0.11.0",
     "uuid": "^3.1.0"
   },
   "optionalDependencies": {
