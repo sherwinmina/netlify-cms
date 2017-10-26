@@ -328,19 +328,19 @@ export default class API {
         )));
     } else {
       // Entry is already on editorial review workflow - just update metadata and commit to existing branch
+      let prNumber;
       return this.getBranch(branchName)
       .then(branchData => this.updateTree(branchData.commit.sha, "/", fileTree))
       .then(changeTree => this.commit(options.commitMessage, changeTree))
-      .then((response) => {
-        const contentKey = entry.slug;
-        const branchName = `cms/${ contentKey }`;
+      .then(newHead => {
         return this.user().then(user => user.name ? user.name : user.login)
         .then(username => this.retrieveMetadata(contentKey))
         .then((metadata) => {
           let files = metadata.objects && metadata.objects.files || [];
           files = files.concat(filesList);
           const updatedPR = metadata.pr;
-          updatedPR.head = response.sha;
+          updatedPR.head = newHead.sha;
+          prNumber = updatedPR.number;
           return {
             ...metadata,
             pr: updatedPR,
@@ -353,13 +353,86 @@ export default class API {
               },
               files: uniq(files),
             },
-            timeStamp: new Date().toISOString(),
           };
         })
-        .then(updatedMetadata => this.storeMetadata(contentKey, updatedMetadata))
-        .then(this.patchBranch(branchName, response.sha));
+        .then(metadata => this.rebasePullRequest(prNumber, branchName, contentKey, metadata, newHead));
       });
     }
+  }
+
+  /**
+   * Rebase a pull request onto the latest HEAD of it's target base branch
+   * (should generally be the configured backend branch).
+   */
+  rebasePullRequest(prNumber, branchName, contentKey, metadata, head) {
+    let base;
+    return this.getBranch()
+      .then(baseBranch => base = baseBranch.commit.sha)
+      .then(() => this.getPullRequestCommits(prNumber))
+      .then(prCommits => {
+        const missingHead = head && head.parents[0].sha === last(prCommits).sha;
+        const commits = missingHead ? prCommits.concat(head) : prCommits;
+        return this.rebaseCommits(base, commits);
+      })
+      .then(rebasedHead => {
+        const pr = { ...metadata.pr, head: rebasedHead.sha };
+        const timeStamp = new Date().toISOString();
+        const updatedMetadata = { ...metadata, pr, timeStamp };
+        return this.storeMetadata(contentKey, updatedMetadata)
+          .then(() => this.patchBranch(branchName, rebasedHead.sha, { force: true }));
+      });
+  }
+
+  /**
+   * Rebase an array of commits one-by-one, starting from a given base SHA. Can
+   * accept an array of commits as received from the GitHub API.
+   */
+  rebaseCommits(base, commits) {
+    /**
+     * If the parent of the first commit already matches the target base,
+     * return commits as is.
+     */
+    if (commits.length === 0 || commits[0].parents[0].sha === base) {
+      return Promise.resolve(last(commits));
+    }
+
+    /**
+     * Re-create each commit, changing only the parent SHA for each, but
+     * retaining all other info, such as the tree and author/committer data.
+     */
+    const newHeadPromise = commits.reduce((lastCommitPromise, commit, idx) => {
+      return lastCommitPromise.then(newParent => {
+        const parent = idx === 0 ? base : newParent.sha;
+
+        /**
+         * A list of commits from a pull request has basic commit data nested
+         * in a `commit` field, whereas a commit from a request for a single
+         * commit does not nest the commit data.
+         */
+        const commitToRebase = commit.commit || commit;
+
+        return this.rebaseCommit(parent, commitToRebase);
+      });
+    }, Promise.resolve());
+
+    /**
+     * Return a promise that resolves when all commits have been created.
+     */
+    return newHeadPromise;
+  }
+
+  rebaseCommit(base, commit) {
+    const { message, tree, author, committer } = commit;
+    const parents = [ base ];
+    return this.createCommit({ message, tree: tree.sha, parents, author, committer });
+  }
+
+  getPullRequest(prNumber) {
+    return this.request(`${ this.repoURL }/pulls/${prNumber} }`);
+  }
+
+  getPullRequestCommits(prNumber) {
+    return this.request(`${ this.repoURL }/pulls/${prNumber}/commits`);
   }
 
   updateUnpublishedEntryStatus(collection, slug, status) {
@@ -404,10 +477,11 @@ export default class API {
     });
   }
 
-  patchRef(type, name, sha) {
+  patchRef(type, name, sha, opts = {}) {
+    const force = opts.force || false;
     return this.request(`${ this.repoURL }/git/refs/${ type }/${ encodeURIComponent(name) }`, {
       method: "PATCH",
-      body: JSON.stringify({ sha }),
+      body: JSON.stringify({ sha, force }),
     });
   }
 
@@ -425,8 +499,9 @@ export default class API {
     return this.createRef("heads", branchName, sha);
   }
 
-  patchBranch(branchName, sha) {
-    return this.patchRef("heads", branchName, sha);
+  patchBranch(branchName, sha, opts = {}) {
+    const force = opts.force || false;
+    return this.patchRef("heads", branchName, sha, { force });
   }
 
   deleteBranch(branchName) {
@@ -553,9 +628,14 @@ export default class API {
   commit(message, changeTree) {
     const tree = changeTree.sha;
     const parents = changeTree.parentSha ? [changeTree.parentSha] : [];
+    return this.createCommit({ message, tree, parents });
+  }
+
+  createCommit(commit) {
     return this.request(`${ this.repoURL }/git/commits`, {
       method: "POST",
-      body: JSON.stringify({ message, tree, parents }),
+      body: JSON.stringify(commit),
     });
   }
+
 }
